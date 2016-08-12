@@ -1,0 +1,188 @@
+{
+    "kind": "List",
+    "apiVersion": "v1",
+    "metadata": {},
+    "items": [
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "labels": {
+                    "name": "picapport"
+                },
+                "name": "picapport-webui"
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "port": 8080,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "name": "picapport"
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolume",
+            "metadata": {
+                "name": "photos-pv"
+            },
+            "spec": {
+                "ClaimRef": {
+                    "Name": "photos-pv",
+                    "Namespace": "default"
+                },
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "capacity": {
+                    "storage": "500Gi"
+                },
+                "nfs": {
+                    "path": "/mnt/export/pvs/photos",
+                    "readOnly": false,
+                    "server": "192.168.0.149"
+                },
+                "persistentVolumeReclaimPolicy": "Retain"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolume",
+            "metadata": {
+                "name": "config-pv"
+            },
+            "spec": {
+                "ClaimRef": {
+                    "Name": "config-pv",
+                    "Namespace": "default"
+                },
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "capacity": {
+                    "storage": "5Gi"
+                },
+                "nfs": {
+                    "path": "/mnt/export/pvs/picapport-config",
+                    "readOnly": false,
+                    "server": "192.168.0.149"
+                },
+                "persistentVolumeReclaimPolicy": "Retain"
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "photos-pv"
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "500Gi"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "config-pv"
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "5Gi"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "DeploymentConfig",
+            "metadata": {
+                "name": "picapport"
+            },
+            "spec": {
+                "replicas": 1,
+                "selector": {
+                    "name": "picapport"
+                },
+                "strategy": {
+                    "type": "Rolling"
+                },
+                "template": {
+                    "dnsPolicy": "ClusterFirst",
+                    "metadata": {
+                        "labels": {
+                            "name": "picapport"
+                        }
+                    },
+                    "restartPolicy": "Always",
+                    "securityContext": {},
+                    "spec": {
+                        "containers": [
+                            {
+                                "image": "172.30.150.212:5000/openshift/piccaport",
+                                "name": "picapport",
+                                "ports": [
+                                    {
+                                        "containerPort": 8080,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "resources": {},
+                                "terminationMessagePath": "/dev/termination-log"
+                            }
+                        ]
+                    },
+                    "volumes": [
+                        {
+                            "name": "photos-pvc",
+                            "persistentVolumeClaim": {
+                                "claimName": "photos-pv"
+                            }
+                        },
+                        {
+                            "name": "config-pv",
+                            "persistentVolumeClaim": {
+                                "claimName": "config-pv"
+                            }
+                        }
+                    ]
+                },
+                "triggers": [
+                    {
+                        "type": "ConfigChange"
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Route",
+            "metadata": {
+                "name": "picapport"
+            },
+            "spec": {
+                "host": "photos.apps.eformat.nz",
+                "to": {
+                    "kind": "Service",
+                    "name": "picapport-webui"
+                }
+            }
+        }
+    ]
+}

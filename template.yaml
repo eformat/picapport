@@ -1,0 +1,148 @@
+kind: Template
+apiVersion: v1
+template: picapport
+metadata:
+  name: picapport
+objects:
+
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: ${MASTER_NAME}-webui
+    labels:
+      name: ${MASTER_NAME}
+  spec:
+    ports:
+      - protocol: TCP
+        port: 8080
+        targetPort: 8080
+    selector:
+      name: ${MASTER_NAME}
+
+- kind: PersistentVolume
+  apiVersion: v1
+  metadata:
+    name: photos-pv
+  spec:
+    capacity:
+      storage: 500Gi
+    accessModes:
+      - ReadWriteMany
+    persistentVolumeReclaimPolicy: Retain
+    ClaimRef:
+      Namespace: default
+      Name: photos-pv
+    nfs:
+      path: /mnt/export/pvs/photos
+      server: 192.168.0.149
+      readOnly: false
+
+- kind: PersistentVolume
+  apiVersion: v1
+  metadata:
+    name: config-pv
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteMany
+    persistentVolumeReclaimPolicy: Retain
+    ClaimRef:
+      Namespace: default
+      Name: config-pv
+    nfs:
+      path: /mnt/export/pvs/picapport-config
+      server: 192.168.0.149
+      readOnly: false
+
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: photos-pv
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: 500Gi
+      
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: config-pv
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: 5Gi
+
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: ${MASTER_NAME}
+  spec:    
+    strategy:
+      type: Rolling
+    triggers:
+      - type: ConfigChange
+    replicas: 1
+    selector:
+      name: ${MASTER_NAME}
+    template:
+      metadata:
+        labels:
+          name: ${MASTER_NAME}
+      spec:
+        volumes:
+          -
+            name: config-vol
+            persistentVolumeClaim:
+              claimName: config-pv
+          -
+            name: photos-vol
+            persistentVolumeClaim:
+              claimName: photos-pv        
+        containers:
+        - name: ${MASTER_NAME}
+          image: ${IMAGE}
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources: {}
+          volumeMounts:
+            -
+              name: config-vol
+              mountPath: /opt/jboss/picapport/data
+            -
+              name: photos-vol
+              mountPath: /opt/jboss/picapport/photos
+          terminationMessagePath: /dev/termination-log
+          imagePullPolicy: Always
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      securityContext: {}            
+
+- kind: Route
+  apiVersion: v1  
+  metadata:
+    name: picapport
+  spec:
+    host: ${HOST_NAME}
+    to:
+      kind: Service
+      name: ${MASTER_NAME}-webui
+
+parameters:
+- name: IMAGE
+  description: Name of the Picapport master/worker image
+  value: _REPO_/picapport:latest
+- name: MASTER_NAME
+  description: master name used as a service name and a selector
+  generate: expression
+  from: "picapport"
+  required: true
+- name: HOST_NAME
+  description: External Route DNS Name
+  value: photos.apps.eformat.nz
